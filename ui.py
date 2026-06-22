@@ -193,6 +193,7 @@ _SCATTER_SOCKET_MAP = {
     "scatter_translate_nth":     "Socket_28",  # Translate Nth     (Int)
     "scatter_min":               "Socket_29",  # Min               (Vector)
     "scatter_max_vec":           "Socket_30",  # Max               (Vector)
+    "scatter_culling_radius":    "Socket_17",  # Culling Radius    (Float)
     "scatter_look_at":           "Socket_24",  # Look At           (Bool)
     "scatter_locator":           "Socket_14",  # Locator           (Object)
     "scatter_stick_to_surface":  "Socket_25",  # Stick to Surface  (Bool)
@@ -207,6 +208,7 @@ _PATH_SOCKET_MAP = {
     "path_by_length":            "Socket_34",  # By Length        (Bool)
     "path_length":               "Socket_33",  # Length           (Float)
     "path_seed":                 "Socket_4",   # Seed             (Int)
+    "path_scale":                "Socket_27",  # Scale            (Float)
     "path_random_rotation":      "Socket_12",  # Random Rotation  (Float)
     "path_random_translation":   "Socket_11",  # Random Position  (Float)
     "path_random_delete":        "Socket_13",  # Delete Nth       (Int)
@@ -334,7 +336,7 @@ _SOCKET_TO_PROP = {
     "Socket_32": "path_count",
     "Socket_34": "path_by_length",
     "Socket_33": "path_length",
-    "Socket_17": "path_culling_radius",
+    "Socket_27": "path_scale",
 }
 
 _READING_MODIFIER = [False]
@@ -609,6 +611,10 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
         name="Max", default=(0.0, 0.0, 0.0), subtype="XYZ",
         update=_sync_on_update,
     )
+    scatter_culling_radius: bpy.props.FloatProperty(
+        name="Culling Radius", default=0.0, min=0.0,
+        update=_sync_on_update,
+    )
     scatter_look_at: bpy.props.BoolProperty(
         name="Look At", default=False,
         update=_sync_on_update,
@@ -654,6 +660,10 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
     )
     path_seed: bpy.props.IntProperty(
         name="Seed", default=0, min=0,
+        update=_sync_on_update,
+    )
+    path_scale: bpy.props.FloatProperty(
+        name="Scale", default=1.0, min=0.0,
         update=_sync_on_update,
     )
     path_random_rotation: bpy.props.FloatProperty(
@@ -912,7 +922,6 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
         using_regular = props.use_regular_instance
 
         if props.crowd_type == "SCATTER":
-            # ── Surface ───────────────────────────────────────────────
             col.prop(props, "scatter_mesh_surface", icon="MESH_DATA")
             col.separator(factor=0.8)
             col.prop(props, "scatter_type", expand=True)
@@ -923,47 +932,34 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
             radius_row.prop(props, "scatter_radius_size")
 
             col.prop(props, "scatter_seed")
-            col.separator(factor=0.5)
-
-            # ── Animation ─────────────────────────────────────────────
-            var_row        = col.row()
-            var_row.active = not using_regular
-            var_row.prop(props, "scatter_anim_variations")
-
-            offset_row        = col.row()
-            offset_row.active = not using_regular
-            offset_row.prop(props, "scatter_anim_offset")
-            col.separator(factor=0.5)
-
-            # ── Transform ─────────────────────────────────────────────
             col.prop(props, "scatter_scale")
             col.prop(props, "scatter_random_rotation")
             col.prop(props, "scatter_random_translation")
-            col.prop(props, "scatter_random_scale")
             col.separator(factor=0.5)
 
-            # ── Delete / Translate Nth ─────────────────────────────────
             col.prop(props, "scatter_random_delete")
             col.prop(props, "scatter_translate_nth")
             col.prop(props, "scatter_min")
             col.prop(props, "scatter_max_vec")
-            col.separator(factor=0.8)
+            col.separator(factor=0.5)
 
-            # ── Look At ───────────────────────────────────────────────
+            culling_row         = col.row()
+            culling_row.enabled = False
+            culling_row.prop(props, "scatter_culling_radius")
+            col.separator(factor=0.5)
+
             col.prop(props, "scatter_look_at")
             locator_row        = col.row()
             locator_row.active = props.scatter_look_at
             locator_row.prop(props, "scatter_locator", text="Locator", icon="OBJECT_DATA")
             col.separator(factor=0.5)
 
-            # ── Stick to Surface ──────────────────────────────────────
             col.prop(props, "scatter_stick_to_surface")
             raycast_row        = col.row()
             raycast_row.active = props.scatter_stick_to_surface
             raycast_row.prop(props, "scatter_raycast_object", text="Raycast Object", icon="OBJECT_DATA")
             col.separator(factor=0.5)
 
-            # ── Masking ───────────────────────────────────────────────
             col.prop(props, "scatter_object_mask", icon="OBJECT_DATA")
             col.prop(props, "scatter_vertex_group_mask", icon="GROUP_VERTEX")
 
@@ -982,6 +978,7 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
             length_row.prop(props, "path_length")
 
             col.prop(props, "path_seed")
+            col.prop(props, "path_scale")
             col.separator(factor=0.5)
 
             col.prop(props, "path_random_rotation")

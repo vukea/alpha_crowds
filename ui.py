@@ -211,6 +211,7 @@ _PATH_SOCKET_MAP = {
     "path_scale":                "Socket_27",  # Scale            (Float)
     "path_random_rotation":      "Socket_12",  # Random Rotation  (Float)
     "path_random_translation":   "Socket_11",  # Random Position  (Float)
+    "path_random_scale":         "Socket_7",   # Random Scale     (Float)
     "path_random_delete":        "Socket_13",  # Delete Nth       (Int)
     "path_translate_nth":        "Socket_28",  # Translate Nth    (Int)
     "path_min":                  "Socket_29",  # Min              (Vector)
@@ -674,6 +675,10 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
         name="Random Position", default=0.0, min=0.0,
         update=_sync_on_update,
     )
+    path_random_scale: bpy.props.FloatProperty(
+        name="Random Scale", default=0.0, min=0.0,
+        update=_sync_on_update,
+    )
     path_random_delete: bpy.props.IntProperty(
         name="Delete Nth", default=0, min=0,
         update=_sync_on_update,
@@ -935,6 +940,7 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
             col.prop(props, "scatter_scale")
             col.prop(props, "scatter_random_rotation")
             col.prop(props, "scatter_random_translation")
+            col.prop(props, "scatter_random_scale")
             col.separator(factor=0.5)
 
             col.prop(props, "scatter_random_delete")
@@ -983,6 +989,7 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
 
             col.prop(props, "path_random_rotation")
             col.prop(props, "path_random_translation")
+            col.prop(props, "path_random_scale")
             col.separator(factor=0.5)
 
             col.prop(props, "path_random_delete")

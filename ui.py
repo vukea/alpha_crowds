@@ -194,17 +194,24 @@ _SCATTER_SOCKET_MAP = {
 }
 
 _PATH_SOCKET_MAP = {
-    "path_mesh_surface":            "Socket_2",
-    "path_amount":                  "Socket_3",
-    "path_seed":                    "Socket_4",
-    "path_variations":              "Socket_5",
-    "path_max_variation_offset":    "Socket_6",
-    "path_distribution_width":      "Socket_19",
-    "path_culling_radius":          "Socket_17",
-    "path_random_scale":            "Socket_7",
-    "path_random_translation":      "Socket_11",
-    "path_random_rotation":         "Socket_12",
-    "path_random_delete":           "Socket_13",
+    "path_curve_path":           "Socket_21",  # Curve Path       (Object)
+    "path_count":                "Socket_32",  # Count            (Int)
+    "path_by_length":            "Socket_34",  # By Length        (Bool)
+    "path_length":               "Socket_33",  # Length           (Float)
+    "path_seed":                 "Socket_4",   # Seed             (Int)
+    "path_random_rotation":      "Socket_12",  # Random Rotation  (Float)
+    "path_random_translation":   "Socket_11",  # Random Position  (Float)
+    "path_random_delete":        "Socket_13",  # Delete Nth       (Int)
+    "path_translate_nth":        "Socket_28",  # Translate Nth    (Int)
+    "path_min":                  "Socket_29",  # Min              (Vector)
+    "path_max_vec":              "Socket_30",  # Max              (Vector)
+    "path_culling_radius":       "Socket_17",  # Culling Radius   (Float)
+    "path_look_at":              "Socket_24",  # Look At          (Bool)
+    "path_locator":              "Socket_14",  # Locator          (Object)
+    "path_stick_to_surface":     "Socket_25",  # Stick to Surface (Bool)
+    "path_raycast_object":       "Socket_31",  # Raycast Object   (Object)
+    "path_object_mask":          "Socket_36",  # Object Mask      (Object)
+    "path_vertex_group_mask":    "Socket_37",  # Vertex Group Mask(String)
 }
 
 _SCATTER_TYPE_SOCKETS = {
@@ -258,7 +265,6 @@ def sync_modifier(operator, context):
     _mod_set(mod, "Socket_16", is_path)
 
     if is_path:
-        _mod_set(mod, "Socket_21", props.path_mesh_surface)
         for prop_name, socket_id in _PATH_SOCKET_MAP.items():
             _mod_set(mod, socket_id, getattr(props, prop_name))
         for socket_id in _SCATTER_TYPE_SOCKETS.values():
@@ -293,6 +299,7 @@ def _sync_on_update(self, context):
 # ─────────────────────────────────────────────
 
 _SOCKET_TO_PROP = {
+    # Scatter
     "Socket_2":  "scatter_mesh_surface",
     "Socket_3":  "scatter_amount",
     "Socket_4":  "scatter_seed",
@@ -304,12 +311,21 @@ _SOCKET_TO_PROP = {
     "Socket_13": "scatter_random_delete",
     "Socket_14": "scatter_look_at",
     "Socket_24": "use_look_at",
-    "Socket_16": None,
-    "Socket_21": None,
-    "Socket_17": "path_culling_radius",
-    "Socket_19": "path_distribution_width",
     "Socket_22": "regular_instance",
     "Socket_23": "use_regular_instance",
+    # Path
+    "Socket_21": "path_curve_path",
+    "Socket_32": "path_count",
+    "Socket_34": "path_by_length",
+    "Socket_33": "path_length",
+    "Socket_17": "path_culling_radius",
+    "Socket_28": "path_translate_nth",
+    "Socket_25": "path_stick_to_surface",
+    "Socket_31": "path_raycast_object",
+    "Socket_36": "path_object_mask",
+    "Socket_37": "path_vertex_group_mask",
+    # Socket_16 (crowd_type bool) handled manually
+    "Socket_16": None,
 }
 
 _READING_MODIFIER = [False]
@@ -358,10 +374,6 @@ def read_modifier(operator, context):
                     setattr(props, prop_name, val)
                 except Exception as e:
                     print(f"Alpha Crowds read — could not set {prop_name}: {e}")
-
-        curve_obj = mod.get("Socket_21")
-        if curve_obj is not None:
-            props.path_mesh_surface = curve_obj
 
         characterset_node = None
         for m in obj.modifiers:
@@ -516,8 +528,9 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
         name="Type",
         description="Choose how the crowd is distributed in the scene",
         items=[
-            ("SCATTER", "Scatter", "Distribute agents randomly across a surface", "PARTICLES", 0),
-            ("PATH",    "Path",    "Guide agents along a defined path or curve",  "CURVE_DATA", 1),
+            ("SCATTER",  "Scatter",  "Distribute agents randomly across a surface", "PARTICLES",    0),
+            ("PATH",     "Path",     "Guide agents along a defined path or curve",  "CURVE_DATA",   1),
+            ("WALK_RUN", "Walk/Run", "Walk/Run crowd type (work in progress)",      "ARMATURE_DATA", 2),
         ],
         default="SCATTER",
         update=_sync_on_update,
@@ -583,33 +596,25 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
     )
 
     # ── Path ──────────────────────────────────────────────────────────
-    path_mesh_surface: bpy.props.PointerProperty(
-        name="Mesh Surface", type=bpy.types.Object,
-        poll=lambda self, obj: obj.type == "MESH",
+    path_curve_path: bpy.props.PointerProperty(
+        name="Curve Path", type=bpy.types.Object,
+        poll=lambda self, obj: obj.type == "CURVE",
         update=_sync_on_update,
     )
-    path_amount: bpy.props.FloatProperty(
-        name="Amount", default=0.0, min=0.0,
+    path_count: bpy.props.IntProperty(
+        name="Count", default=0, min=0,
+        update=_sync_on_update,
+    )
+    path_by_length: bpy.props.BoolProperty(
+        name="Distribute by Length", default=False,
+        update=_sync_on_update,
+    )
+    path_length: bpy.props.FloatProperty(
+        name="Length", default=0.0, min=0.0,
         update=_sync_on_update,
     )
     path_seed: bpy.props.IntProperty(
         name="Seed", default=0, min=0,
-        update=_sync_on_update,
-    )
-    path_culling_radius: bpy.props.IntProperty(
-        name="Culling Radius", default=0, min=0,
-        update=_sync_on_update,
-    )
-    path_distribution_width: bpy.props.IntProperty(
-        name="Distribution Width", default=0, min=0,
-        update=_sync_on_update,
-    )
-    path_variations: bpy.props.IntProperty(
-        name="Variations", default=0, min=0,
-        update=_sync_on_update,
-    )
-    path_max_variation_offset: bpy.props.IntProperty(
-        name="Max Variation Offset", default=0, min=0,
         update=_sync_on_update,
     )
     path_random_rotation: bpy.props.FloatProperty(
@@ -617,15 +622,51 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
         update=_sync_on_update,
     )
     path_random_translation: bpy.props.FloatProperty(
-        name="Random Translation", default=0.0, min=0.0,
+        name="Random Position", default=0.0, min=0.0,
         update=_sync_on_update,
     )
-    path_random_scale: bpy.props.FloatProperty(
-        name="Random Scale", default=0.0, min=0.0,
+    path_random_delete: bpy.props.IntProperty(
+        name="Delete Nth", default=0, min=0,
         update=_sync_on_update,
     )
-    path_random_delete: bpy.props.FloatProperty(
-        name="Random Delete", default=0.0, min=0.0, max=100.0, subtype="PERCENTAGE",
+    path_translate_nth: bpy.props.IntProperty(
+        name="Translate Nth", default=0, min=0,
+        update=_sync_on_update,
+    )
+    path_min: bpy.props.FloatVectorProperty(
+        name="Min", default=(0.0, 0.0, 0.0), subtype="XYZ",
+        update=_sync_on_update,
+    )
+    path_max_vec: bpy.props.FloatVectorProperty(
+        name="Max", default=(0.0, 0.0, 0.0), subtype="XYZ",
+        update=_sync_on_update,
+    )
+    path_culling_radius: bpy.props.FloatProperty(
+        name="Culling Radius", default=0.0, min=0.0,
+        update=_sync_on_update,
+    )
+    path_look_at: bpy.props.BoolProperty(
+        name="Look At", default=False,
+        update=_sync_on_update,
+    )
+    path_locator: bpy.props.PointerProperty(
+        name="Locator", type=bpy.types.Object,
+        update=_sync_on_update,
+    )
+    path_stick_to_surface: bpy.props.BoolProperty(
+        name="Stick to Surface", default=False,
+        update=_sync_on_update,
+    )
+    path_raycast_object: bpy.props.PointerProperty(
+        name="Raycast Object", type=bpy.types.Object,
+        update=_sync_on_update,
+    )
+    path_object_mask: bpy.props.PointerProperty(
+        name="Object Mask", type=bpy.types.Object,
+        update=_sync_on_update,
+    )
+    path_vertex_group_mask: bpy.props.StringProperty(
+        name="Vertex Group Mask", default="",
         update=_sync_on_update,
     )
 
@@ -866,27 +907,55 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
             look_sub.prop(props, "scatter_look_at", text="")
 
         elif props.crowd_type == "PATH":
-            col.prop(props, "path_mesh_surface", icon="MESH_DATA")
+            col.prop(props, "path_curve_path", icon="CURVE_DATA")
             col.separator(factor=0.8)
-            col.prop(props, "path_amount")
+
+            count_row        = col.row()
+            count_row.active = not props.path_by_length
+            count_row.prop(props, "path_count")
+
+            col.prop(props, "path_by_length")
+
+            length_row        = col.row()
+            length_row.active = props.path_by_length
+            length_row.prop(props, "path_length")
+
             col.prop(props, "path_seed")
-            col.prop(props, "path_culling_radius")
-            col.prop(props, "path_distribution_width")
-
-            var_row        = col.row()
-            var_row.active = not using_regular
-            var_row.prop(props, "path_variations")
-
-            offset_row        = col.row()
-            offset_row.active = not using_regular
-            offset_row.prop(props, "path_max_variation_offset")
-
             col.separator(factor=0.5)
+
             col.prop(props, "path_random_rotation")
             col.prop(props, "path_random_translation")
-            col.prop(props, "path_random_scale")
             col.separator(factor=0.5)
-            col.prop(props, "path_random_delete", slider=True)
+
+            col.prop(props, "path_random_delete")
+            col.prop(props, "path_translate_nth")
+            col.prop(props, "path_min")
+            col.prop(props, "path_max_vec")
+            col.separator(factor=0.5)
+
+            culling_row        = col.row()
+            culling_row.enabled = False
+            culling_row.prop(props, "path_culling_radius")
+            col.separator(factor=0.5)
+
+            col.prop(props, "path_look_at")
+            locator_row        = col.row()
+            locator_row.active = props.path_look_at
+            locator_row.prop(props, "path_locator", text="Locator", icon="OBJECT_DATA")
+            col.separator(factor=0.5)
+
+            col.prop(props, "path_stick_to_surface")
+            raycast_row        = col.row()
+            raycast_row.active = props.path_stick_to_surface
+            raycast_row.prop(props, "path_raycast_object", text="Raycast Object", icon="OBJECT_DATA")
+            col.separator(factor=0.5)
+
+            col.prop(props, "path_object_mask", icon="OBJECT_DATA")
+            col.prop(props, "path_vertex_group_mask", icon="GROUP_VERTEX")
+
+        elif props.crowd_type == "WALK_RUN":
+            col = layout.column(align=True)
+            col.label(text="Walk / Run — coming soon", icon="INFO")
 
         layout.separator(factor=0.5)
 

@@ -8,14 +8,11 @@ bl_info = {
     "category": "Object",
 }
 
-import bpy
-
-from . import operators
-from . import panels
-from . import properties
+from . import properties, operators, panels, utils
 
 
 def register():
+    utils.icons.register()
     properties.register()
     operators.register()
     panels.register()
@@ -25,3 +22,4 @@ def unregister():
     panels.unregister()
     operators.unregister()
     properties.unregister()
+    utils.icons.unregister()

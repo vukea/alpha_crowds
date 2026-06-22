@@ -15,7 +15,7 @@ _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _ADDON_DIR   = os.path.dirname(_SCRIPTS_DIR)
 
 _DEFAULTS = dict(
-    blend_path  = os.path.join(_ADDON_DIR, "assets", "blend", "geonodes.blend"),
+    blend_path  = os.path.join(_ADDON_DIR, "assets", "blend", "setup.blend"),
     mesh_name   = "GEO_crowd_scatter",
     col_crowd   = "CROWD",
     col_scatter = "SCATTER_Crowd",

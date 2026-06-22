@@ -8,18 +8,10 @@ bl_info = {
     "category": "Object",
 }
 
-from . import properties, operators, panels, utils
-
 
 def register():
-    utils.icons.register()
-    properties.register()
-    operators.register()
-    panels.register()
+    pass
 
 
 def unregister():
-    panels.unregister()
-    operators.unregister()
-    properties.unregister()
-    utils.icons.unregister()
+    pass

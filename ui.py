@@ -1092,6 +1092,53 @@ class ALPHA_PT_instance_manager(bpy.types.Panel):
 
 
 # ─────────────────────────────────────────────
+#  Depsgraph handler — auto-sync modifier → UI
+# ─────────────────────────────────────────────
+
+_last_mod_values = {}
+
+
+def _on_depsgraph_update(scene, depsgraph):
+    """
+    Fires after any scene change. If the active crowd object's modifier
+    values differ from what's stored, read them back into the UI.
+    """
+    if _READING_MODIFIER[0]:
+        return
+
+    # Only act if there are crowd objects in the list
+    count = len(scene.alpha_crowds_object_list)
+    if count == 0:
+        return
+
+    idx  = scene.alpha_crowds_object_index
+    if idx < 0 or idx >= count:
+        return
+
+    item = scene.alpha_crowds_object_list[idx]
+    obj  = item.object_ref
+    if obj is None:
+        return
+
+    mod = obj.modifiers.get(CROWD_MODIFIER_NAME)
+    if mod is None:
+        return
+
+    # Build a snapshot of current modifier values
+    snapshot = {k: mod.get(k) for k in mod.keys()}
+
+    if snapshot != _last_mod_values.get(obj.name):
+        _last_mod_values[obj.name] = snapshot
+        # Use a context override so read_modifier has a valid context
+        try:
+            ctx = bpy.context.copy()
+            ctx["scene"] = scene
+            read_modifier(None, bpy.context)
+        except Exception as e:
+            print(f"Alpha Crowds depsgraph handler error: {e}")
+
+
+# ─────────────────────────────────────────────
 #  Registration
 # ─────────────────────────────────────────────
 
@@ -1122,8 +1169,14 @@ def register():
     bpy.types.Scene.alpha_crowds_object_list  = bpy.props.CollectionProperty(type=AlphaCrowdObjectItem)
     bpy.types.Scene.alpha_crowds_object_index = bpy.props.IntProperty(name="Active Crowd Object", default=0)
 
+    if _on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(_on_depsgraph_update)
+
 
 def unregister():
+    if _on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(_on_depsgraph_update)
+
     for cls in reversed(_classes):
         bpy.utils.unregister_class(cls)
 

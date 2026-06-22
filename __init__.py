@@ -8,12 +8,18 @@ bl_info = {
     "category": "Object",
 }
 
-from . import ui
+from . import modifier_sync, properties, operators, panels
 
 
 def register():
-    ui.register()
+    modifier_sync.register()
+    properties.register()
+    operators.register()
+    panels.register()
 
 
 def unregister():
-    ui.unregister()
+    panels.unregister()
+    operators.unregister()
+    properties.unregister()
+    modifier_sync.unregister()

@@ -180,17 +180,25 @@ class ALPHA_OT_select_layer(bpy.types.Operator):
 # ─────────────────────────────────────────────
 
 _SCATTER_SOCKET_MAP = {
-    "scatter_mesh_surface":         "Socket_2",
-    "scatter_amount":               "Socket_3",
-    "scatter_seed":                 "Socket_4",
-    "scatter_variations":           "Socket_5",
-    "scatter_max_variation_offset": "Socket_6",
-    "scatter_random_scale":         "Socket_7",
-    "scatter_random_translation":   "Socket_11",
-    "scatter_random_rotation":      "Socket_12",
-    "scatter_random_delete":        "Socket_13",
-    "scatter_look_at":              "Socket_14",
-    "use_look_at":                  "Socket_24",
+    "scatter_mesh_surface":      "Socket_2",   # Mesh Surface      (Object)
+    "scatter_anim_variations":   "Socket_5",   # Anim Variations   (Int)
+    "scatter_anim_offset":       "Socket_6",   # Anim Offset       (Int)
+    "scatter_radius_size":       "Socket_3",   # Radius Size       (Float)
+    "scatter_seed":              "Socket_4",   # Seed              (Int)
+    "scatter_scale":             "Socket_27",  # Scale             (Float)
+    "scatter_random_rotation":   "Socket_12",  # Random Rotation   (Float)
+    "scatter_random_translation":"Socket_11",  # Random Position   (Float)
+    "scatter_random_scale":      "Socket_7",   # Random Scale      (Float)
+    "scatter_random_delete":     "Socket_13",  # Delete Nth        (Int)
+    "scatter_translate_nth":     "Socket_28",  # Translate Nth     (Int)
+    "scatter_min":               "Socket_29",  # Min               (Vector)
+    "scatter_max_vec":           "Socket_30",  # Max               (Vector)
+    "scatter_look_at":           "Socket_24",  # Look At           (Bool)
+    "scatter_locator":           "Socket_14",  # Locator           (Object)
+    "scatter_stick_to_surface":  "Socket_25",  # Stick to Surface  (Bool)
+    "scatter_raycast_object":    "Socket_31",  # Raycast Object    (Object)
+    "scatter_object_mask":       "Socket_36",  # Object Mask       (Object)
+    "scatter_vertex_group_mask": "Socket_37",  # Vertex Group Mask (String)
 }
 
 _PATH_SOCKET_MAP = {
@@ -299,33 +307,34 @@ def _sync_on_update(self, context):
 # ─────────────────────────────────────────────
 
 _SOCKET_TO_PROP = {
+    # Shared
+    "Socket_16": None,    # crowd_type bool — handled manually
+    "Socket_22": "regular_instance",
+    "Socket_23": "use_regular_instance",
     # Scatter
     "Socket_2":  "scatter_mesh_surface",
-    "Socket_3":  "scatter_amount",
+    "Socket_3":  "scatter_radius_size",
     "Socket_4":  "scatter_seed",
-    "Socket_5":  "scatter_variations",
-    "Socket_6":  "scatter_max_variation_offset",
+    "Socket_5":  "scatter_anim_variations",
+    "Socket_6":  "scatter_anim_offset",
     "Socket_7":  "scatter_random_scale",
     "Socket_11": "scatter_random_translation",
     "Socket_12": "scatter_random_rotation",
     "Socket_13": "scatter_random_delete",
-    "Socket_14": "scatter_look_at",
-    "Socket_24": "use_look_at",
-    "Socket_22": "regular_instance",
-    "Socket_23": "use_regular_instance",
+    "Socket_14": "scatter_locator",
+    "Socket_24": "scatter_look_at",
+    "Socket_25": "scatter_stick_to_surface",
+    "Socket_27": "scatter_scale",
+    "Socket_28": "scatter_translate_nth",
+    "Socket_31": "scatter_raycast_object",
+    "Socket_36": "scatter_object_mask",
+    "Socket_37": "scatter_vertex_group_mask",
     # Path
     "Socket_21": "path_curve_path",
     "Socket_32": "path_count",
     "Socket_34": "path_by_length",
     "Socket_33": "path_length",
     "Socket_17": "path_culling_radius",
-    "Socket_28": "path_translate_nth",
-    "Socket_25": "path_stick_to_surface",
-    "Socket_31": "path_raycast_object",
-    "Socket_36": "path_object_mask",
-    "Socket_37": "path_vertex_group_mask",
-    # Socket_16 (crowd_type bool) handled manually
-    "Socket_16": None,
 }
 
 _READING_MODIFIER = [False]
@@ -545,27 +554,31 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
     scatter_type: bpy.props.EnumProperty(
         name="Scatter Type",
         items=[
-            ("RADIUS",   "Radius",   "Distribute using a minimum radius between agents"),
-            ("VERTICES", "Vertices", "Place agents on mesh vertices"),
-            ("FACES",    "Faces",    "Place agents on mesh face centres"),
+            ("RADIUS",    "Radius",    "Distribute using a minimum radius between agents"),
+            ("VERTICES",  "Vertices",  "Place agents on mesh vertices"),
+            ("FACES",     "Faces",     "Place agents on mesh face centres"),
         ],
         default="RADIUS",
         update=_sync_on_update,
     )
-    scatter_amount: bpy.props.FloatProperty(
-        name="Amount", default=0.0, min=0.0,
+    scatter_anim_variations: bpy.props.IntProperty(
+        name="Anim Variations", default=0, min=0,
+        update=_sync_on_update,
+    )
+    scatter_anim_offset: bpy.props.IntProperty(
+        name="Anim Offset", default=0, min=0,
+        update=_sync_on_update,
+    )
+    scatter_radius_size: bpy.props.FloatProperty(
+        name="Radius Size", default=0.0, min=0.0,
         update=_sync_on_update,
     )
     scatter_seed: bpy.props.IntProperty(
         name="Seed", default=0, min=0,
         update=_sync_on_update,
     )
-    scatter_variations: bpy.props.IntProperty(
-        name="Variations", default=0, min=0,
-        update=_sync_on_update,
-    )
-    scatter_max_variation_offset: bpy.props.IntProperty(
-        name="Max Variation Offset", default=0, min=0,
+    scatter_scale: bpy.props.FloatProperty(
+        name="Scale", default=1.0, min=0.0,
         update=_sync_on_update,
     )
     scatter_random_rotation: bpy.props.FloatProperty(
@@ -573,25 +586,51 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
         update=_sync_on_update,
     )
     scatter_random_translation: bpy.props.FloatProperty(
-        name="Random Translation", default=0.0, min=0.0,
+        name="Random Position", default=0.0, min=0.0,
         update=_sync_on_update,
     )
     scatter_random_scale: bpy.props.FloatProperty(
         name="Random Scale", default=0.0, min=0.0,
         update=_sync_on_update,
     )
-    scatter_random_delete: bpy.props.FloatProperty(
-        name="Random Delete", default=0.0, min=0.0, max=100.0, subtype="PERCENTAGE",
+    scatter_random_delete: bpy.props.IntProperty(
+        name="Delete Nth", default=0, min=0,
         update=_sync_on_update,
     )
-    scatter_look_at: bpy.props.PointerProperty(
-        name="Look At", type=bpy.types.Object,
+    scatter_translate_nth: bpy.props.IntProperty(
+        name="Translate Nth", default=0, min=0,
         update=_sync_on_update,
     )
-    use_look_at: bpy.props.BoolProperty(
-        name="Look At",
-        description="Enable the Look At target on the modifier (Socket_24)",
-        default=False,
+    scatter_min: bpy.props.FloatVectorProperty(
+        name="Min", default=(0.0, 0.0, 0.0), subtype="XYZ",
+        update=_sync_on_update,
+    )
+    scatter_max_vec: bpy.props.FloatVectorProperty(
+        name="Max", default=(0.0, 0.0, 0.0), subtype="XYZ",
+        update=_sync_on_update,
+    )
+    scatter_look_at: bpy.props.BoolProperty(
+        name="Look At", default=False,
+        update=_sync_on_update,
+    )
+    scatter_locator: bpy.props.PointerProperty(
+        name="Locator", type=bpy.types.Object,
+        update=_sync_on_update,
+    )
+    scatter_stick_to_surface: bpy.props.BoolProperty(
+        name="Stick to Surface", default=False,
+        update=_sync_on_update,
+    )
+    scatter_raycast_object: bpy.props.PointerProperty(
+        name="Raycast Object", type=bpy.types.Object,
+        update=_sync_on_update,
+    )
+    scatter_object_mask: bpy.props.PointerProperty(
+        name="Object Mask", type=bpy.types.Object,
+        update=_sync_on_update,
+    )
+    scatter_vertex_group_mask: bpy.props.StringProperty(
+        name="Vertex Group Mask", default="",
         update=_sync_on_update,
     )
 
@@ -862,6 +901,7 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
         type_row.scale_y = 1.3
         type_row.prop_enum(props, "crowd_type", "SCATTER")
         type_row.prop_enum(props, "crowd_type", "PATH")
+        type_row.prop_enum(props, "crowd_type", "WALK_RUN")
 
         layout.separator(factor=1.0)
 
@@ -872,39 +912,60 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
         using_regular = props.use_regular_instance
 
         if props.crowd_type == "SCATTER":
+            # ── Surface ───────────────────────────────────────────────
             col.prop(props, "scatter_mesh_surface", icon="MESH_DATA")
             col.separator(factor=0.8)
             col.prop(props, "scatter_type", expand=True)
             col.separator(factor=0.8)
 
-            amount_row        = col.row()
-            amount_row.active = (props.scatter_type == "RADIUS")
-            amount_row.prop(props, "scatter_amount")
+            radius_row        = col.row()
+            radius_row.active = (props.scatter_type == "RADIUS")
+            radius_row.prop(props, "scatter_radius_size")
 
             col.prop(props, "scatter_seed")
+            col.separator(factor=0.5)
 
+            # ── Animation ─────────────────────────────────────────────
             var_row        = col.row()
             var_row.active = not using_regular
-            var_row.prop(props, "scatter_variations")
+            var_row.prop(props, "scatter_anim_variations")
 
             offset_row        = col.row()
             offset_row.active = not using_regular
-            offset_row.prop(props, "scatter_max_variation_offset")
-
+            offset_row.prop(props, "scatter_anim_offset")
             col.separator(factor=0.5)
+
+            # ── Transform ─────────────────────────────────────────────
+            col.prop(props, "scatter_scale")
             col.prop(props, "scatter_random_rotation")
             col.prop(props, "scatter_random_translation")
             col.prop(props, "scatter_random_scale")
             col.separator(factor=0.5)
-            col.prop(props, "scatter_random_delete", slider=True)
+
+            # ── Delete / Translate Nth ─────────────────────────────────
+            col.prop(props, "scatter_random_delete")
+            col.prop(props, "scatter_translate_nth")
+            col.prop(props, "scatter_min")
+            col.prop(props, "scatter_max_vec")
             col.separator(factor=0.8)
 
-            look_row        = col.row(align=True)
-            look_row.active = not using_regular
-            look_row.prop(props, "use_look_at", text="Look At")
-            look_sub        = look_row.row()
-            look_sub.active = props.use_look_at and not using_regular
-            look_sub.prop(props, "scatter_look_at", text="")
+            # ── Look At ───────────────────────────────────────────────
+            col.prop(props, "scatter_look_at")
+            locator_row        = col.row()
+            locator_row.active = props.scatter_look_at
+            locator_row.prop(props, "scatter_locator", text="Locator", icon="OBJECT_DATA")
+            col.separator(factor=0.5)
+
+            # ── Stick to Surface ──────────────────────────────────────
+            col.prop(props, "scatter_stick_to_surface")
+            raycast_row        = col.row()
+            raycast_row.active = props.scatter_stick_to_surface
+            raycast_row.prop(props, "scatter_raycast_object", text="Raycast Object", icon="OBJECT_DATA")
+            col.separator(factor=0.5)
+
+            # ── Masking ───────────────────────────────────────────────
+            col.prop(props, "scatter_object_mask", icon="OBJECT_DATA")
+            col.prop(props, "scatter_vertex_group_mask", icon="GROUP_VERTEX")
 
         elif props.crowd_type == "PATH":
             col.prop(props, "path_curve_path", icon="CURVE_DATA")

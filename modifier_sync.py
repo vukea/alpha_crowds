@@ -3,11 +3,12 @@ modifier_sync.py
 ────────────────
 Bidirectional sync between UI properties and the Alpha Crowds modifier.
 
-UI → modifier : _sync_on_update (property update callback)
-Modifier → UI : read_modifier + _on_depsgraph_update (handler)
+UI → modifier : _sync_on_update  (property update callback)
+Modifier → UI : read_modifier + depsgraph handler (auto-refresh)
 """
 
 import bpy
+import types
 
 CROWD_MODIFIER_NAME = "alpha_crowds_modifier"
 
@@ -67,41 +68,20 @@ _SCATTER_TYPE_SOCKETS = {
     "FACES":    "Socket_10",
 }
 
-_SOCKET_TO_PROP = {
+# Reverse map: socket → prop name (used by read_modifier)
+_SOCKET_TO_PROP = {v: k for k, v in _SCATTER_SOCKET_MAP.items()}
+_SOCKET_TO_PROP.update({v: k for k, v in _PATH_SOCKET_MAP.items()})
+_SOCKET_TO_PROP.update({
     "Socket_22": "regular_instance",
     "Socket_23": "use_regular_instance",
-    "Socket_2":  "scatter_mesh_surface",
-    "Socket_3":  "scatter_radius_size",
-    "Socket_4":  "scatter_seed",
-    "Socket_5":  "scatter_anim_variations",
-    "Socket_6":  "scatter_anim_offset",
-    "Socket_7":  "scatter_random_scale",
-    "Socket_11": "scatter_random_translation",
-    "Socket_12": "scatter_random_rotation",
-    "Socket_13": "scatter_random_delete",
-    "Socket_14": "scatter_locator",
-    "Socket_17": "scatter_culling_radius",
-    "Socket_24": "scatter_look_at",
-    "Socket_25": "scatter_stick_to_surface",
-    "Socket_27": "scatter_scale",
-    "Socket_28": "scatter_translate_nth",
-    "Socket_29": "scatter_min",
-    "Socket_30": "scatter_max_vec",
-    "Socket_31": "scatter_raycast_object",
-    "Socket_36": "scatter_object_mask",
-    "Socket_37": "scatter_vertex_group_mask",
-    "Socket_21": "path_curve_path",
-    "Socket_32": "path_count",
-    "Socket_34": "path_by_length",
-    "Socket_33": "path_length",
-}
+})
 
 # ─────────────────────────────────────────────
-#  Helpers
+#  Internal state
 # ─────────────────────────────────────────────
 
 _READING_MODIFIER = [False]
-_last_mod_values  = {}
+_last_mod_hash    = {}
 
 
 def _report(operator, level, msg):
@@ -111,11 +91,16 @@ def _report(operator, level, msg):
         print(f"Alpha Crowds [{level}]: {msg}")
 
 
-def _mod_set(mod, socket_id, value):
-    try:
-        mod[socket_id] = value
-    except Exception as e:
-        print(f"Alpha Crowds sync — could not set {socket_id}: {e}")
+def _get_active_obj(scene):
+    """Return (item, obj) for the active crowd list entry, or (None, None)."""
+    count = len(scene.alpha_crowds_object_list)
+    if count == 0:
+        return None, None
+    idx = scene.alpha_crowds_object_index
+    if idx < 0 or idx >= count:
+        return None, None
+    item = scene.alpha_crowds_object_list[idx]
+    return item, item.object_ref
 
 
 # ─────────────────────────────────────────────
@@ -126,18 +111,10 @@ def sync_modifier(operator, context):
     scene = context.scene
     props = scene.alpha_crowds
 
-    count = len(scene.alpha_crowds_object_list)
-    if count == 0:
+    item, obj = _get_active_obj(scene)
+    if item is None:
         _report(operator, "WARNING", "no crowd objects in list — run Refresh List first")
         return False
-
-    idx = scene.alpha_crowds_object_index
-    if idx < 0 or idx >= count:
-        _report(operator, "WARNING", "invalid list selection")
-        return False
-
-    item = scene.alpha_crowds_object_list[idx]
-    obj  = item.object_ref
     if obj is None:
         _report(operator, "WARNING", f"'{item.name}' missing from scene")
         return False
@@ -148,29 +125,34 @@ def sync_modifier(operator, context):
         return False
 
     is_path = (props.crowd_type == "PATH")
-    _mod_set(mod, "Socket_16", is_path)
+    mod["Socket_16"] = is_path
 
     if is_path:
         for prop_name, socket_id in _PATH_SOCKET_MAP.items():
-            _mod_set(mod, socket_id, getattr(props, prop_name))
+            try:
+                mod[socket_id] = getattr(props, prop_name)
+            except Exception:
+                pass
         for socket_id in _SCATTER_TYPE_SOCKETS.values():
-            _mod_set(mod, socket_id, False)
+            mod[socket_id] = False
     else:
         for prop_name, socket_id in _SCATTER_SOCKET_MAP.items():
-            _mod_set(mod, socket_id, getattr(props, prop_name))
-        active_socket = _SCATTER_TYPE_SOCKETS.get(props.scatter_type)
-        for stype, socket_id in _SCATTER_TYPE_SOCKETS.items():
-            _mod_set(mod, socket_id, socket_id == active_socket)
+            try:
+                mod[socket_id] = getattr(props, prop_name)
+            except Exception:
+                pass
+        active = _SCATTER_TYPE_SOCKETS.get(props.scatter_type)
+        for socket_id in _SCATTER_TYPE_SOCKETS.values():
+            mod[socket_id] = (socket_id == active)
 
-    _mod_set(mod, "Socket_23", props.use_regular_instance)
+    mod["Socket_23"] = props.use_regular_instance
     if props.use_regular_instance:
-        _mod_set(mod, "Socket_22", props.regular_instance)
+        try:
+            mod["Socket_22"] = props.regular_instance
+        except Exception:
+            pass
 
     mod.node_group.interface_update(context)
-    context.view_layer.update()
-    bpy.ops.object.modifier_set_active(modifier=mod.name)
-
-    _report(operator, "INFO", f"modifier updated on '{obj.name}'")
     return True
 
 
@@ -188,14 +170,10 @@ def read_modifier(operator, context):
     scene = context.scene
     props = scene.alpha_crowds
 
-    count = len(scene.alpha_crowds_object_list)
-    if count == 0:
+    item, obj = _get_active_obj(scene)
+    if item is None:
         _report(operator, "WARNING", "no crowd objects in list — run Refresh List first")
         return False
-
-    idx  = scene.alpha_crowds_object_index
-    item = scene.alpha_crowds_object_list[idx]
-    obj  = item.object_ref
     if obj is None:
         _report(operator, "WARNING", f"'{item.name}' is missing from the scene")
         return False
@@ -207,7 +185,7 @@ def read_modifier(operator, context):
 
     _READING_MODIFIER[0] = True
     try:
-        is_path = mod.get("Socket_16", False)
+        is_path = bool(mod.get("Socket_16", False))
         props.crowd_type = "PATH" if is_path else "SCATTER"
 
         if mod.get("Socket_9", False):
@@ -219,12 +197,14 @@ def read_modifier(operator, context):
 
         for socket_id, prop_name in _SOCKET_TO_PROP.items():
             val = mod.get(socket_id)
-            if val is not None:
-                try:
-                    setattr(props, prop_name, val)
-                except Exception as e:
-                    print(f"Alpha Crowds read — could not set {prop_name}: {e}")
+            if val is None:
+                continue
+            try:
+                setattr(props, prop_name, val)
+            except Exception:
+                pass
 
+        # Read CharacterSet_01 node for instance sets
         characterset_node = None
         for m in obj.modifiers:
             if m.type != "NODES" or not m.node_group:
@@ -238,11 +218,14 @@ def read_modifier(operator, context):
 
         if characterset_node:
             inputs = characterset_node.inputs
-            props.scatter_anim_variations = inputs[0].default_value
-            props.scatter_anim_offset     = inputs[1].default_value
-            for i in range(1, 10):
-                setattr(props, f"instance_set_{i}_enabled", inputs[i * 2].default_value)
-                setattr(props, f"instance_set_{i}",         inputs[i * 2 + 1].default_value)
+            try:
+                props.scatter_anim_variations = inputs[0].default_value
+                props.scatter_anim_offset     = inputs[1].default_value
+                for i in range(1, 10):
+                    setattr(props, f"instance_set_{i}_enabled", inputs[i * 2].default_value)
+                    setattr(props, f"instance_set_{i}",         inputs[i * 2 + 1].default_value)
+            except Exception:
+                pass
 
     finally:
         _READING_MODIFIER[0] = False
@@ -259,16 +242,7 @@ def _on_depsgraph_update(scene, depsgraph):
     if _READING_MODIFIER[0]:
         return
 
-    count = len(scene.alpha_crowds_object_list)
-    if count == 0:
-        return
-
-    idx = scene.alpha_crowds_object_index
-    if idx < 0 or idx >= count:
-        return
-
-    item = scene.alpha_crowds_object_list[idx]
-    obj  = item.object_ref
+    item, obj = _get_active_obj(scene)
     if obj is None:
         return
 
@@ -276,13 +250,22 @@ def _on_depsgraph_update(scene, depsgraph):
     if mod is None:
         return
 
-    snapshot = {k: mod.get(k) for k in mod.keys()}
-    if snapshot != _last_mod_values.get(obj.name):
-        _last_mod_values[obj.name] = snapshot
-        try:
-            read_modifier(None, bpy.context)
-        except Exception as e:
-            print(f"Alpha Crowds depsgraph handler error: {e}")
+    # Cheap hash to detect changes — avoids running read_modifier every frame
+    try:
+        snapshot = hash(tuple(sorted((k, str(mod.get(k))) for k in mod.keys())))
+    except Exception:
+        return
+
+    if _last_mod_hash.get(obj.name) == snapshot:
+        return
+    _last_mod_hash[obj.name] = snapshot
+
+    # Build a minimal context-like object — bpy.context is restricted here
+    ctx = types.SimpleNamespace(scene=scene)
+    try:
+        read_modifier(None, ctx)
+    except Exception as e:
+        print(f"Alpha Crowds depsgraph handler error: {e}")
 
 
 # ─────────────────────────────────────────────

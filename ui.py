@@ -7,7 +7,7 @@ import runpy
 #  Paths
 # ─────────────────────────────────────────────
 _ADDON_DIR              = os.path.dirname(os.path.abspath(__file__))
-LOGO_PATH               = r"X:\ELEMENTS\3D\Blender\Tanaka\_Shared\Images\alpha_crowds_logo.png"
+LOGO_PATH               = os.path.join(_ADDON_DIR, "assets", "icons", "alpha_crowds_logo.png")
 SCRIPTS_DIR             = os.path.join(_ADDON_DIR, "scripts")
 CROWD_MODIFIER_NAME     = "alpha_crowds_modifier"
 

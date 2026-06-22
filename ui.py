@@ -540,9 +540,9 @@ class AlphaCrowdsProperties(bpy.types.PropertyGroup):
         name="Type",
         description="Choose how the crowd is distributed in the scene",
         items=[
-            ("SCATTER",  "Scatter",  "Distribute agents randomly across a surface", "PARTICLES",    0),
-            ("PATH",     "Path",     "Guide agents along a defined path or curve",  "CURVE_DATA",   1),
-            ("WALK_RUN", "Walk/Run", "Walk/Run crowd type (work in progress)",      "ARMATURE_DATA", 2),
+            ("SCATTER",  "Scatter",  "Distribute agents randomly across a surface"),
+            ("PATH",     "Path",     "Guide agents along a defined path or curve"),
+            ("WALK_RUN", "Walk/Run", "Walk/Run crowd type (work in progress)"),
         ],
         default="SCATTER",
         update=_sync_on_update,

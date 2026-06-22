@@ -8,10 +8,12 @@ bl_info = {
     "category": "Object",
 }
 
+from . import ui
+
 
 def register():
-    pass
+    ui.register()
 
 
 def unregister():
-    pass
+    ui.unregister()

@@ -274,12 +274,59 @@ def read_modifier(operator, context):
 
 
 # ─────────────────────────────────────────────
-#  Registration  (no handlers needed)
+#  Modifier → UI  (auto, via depsgraph)
+# ─────────────────────────────────────────────
+#
+# Watches the active crowd object's modifier for external changes (e.g. the
+# user edits a socket directly in the modifier panel) and calls read_modifier
+# to pull those values back into the UI.
+#
+# bpy.context is restricted inside depsgraph callbacks, so we pass a minimal
+# stand-in that only exposes .scene — all read_modifier needs.
+
+import types as _types
+
+_last_mod_hash = {}
+
+
+def _on_depsgraph_update(scene, depsgraph):
+    if _READING_MODIFIER[0]:
+        return
+
+    item, obj = _get_active(scene)
+    if obj is None:
+        return
+
+    mod = obj.modifiers.get(CROWD_MODIFIER_NAME)
+    if mod is None:
+        return
+
+    # Cheap change-detection — only call read_modifier when something differs
+    try:
+        snapshot = hash(tuple(sorted((k, str(mod.get(k))) for k in mod.keys())))
+    except Exception:
+        return
+
+    if _last_mod_hash.get(obj.name) == snapshot:
+        return
+    _last_mod_hash[obj.name] = snapshot
+
+    ctx = _types.SimpleNamespace(scene=scene)
+    try:
+        read_modifier(None, ctx)
+    except Exception as e:
+        print(f"Alpha Crowds depsgraph handler error: {e}")
+
+
+# ─────────────────────────────────────────────
+#  Registration
 # ─────────────────────────────────────────────
 
 def register():
-    pass
+    if _on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(_on_depsgraph_update)
 
 
 def unregister():
-    pass
+    if _on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(_on_depsgraph_update)

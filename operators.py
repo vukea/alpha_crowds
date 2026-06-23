@@ -8,7 +8,7 @@ import bpy
 import os
 import runpy
 
-from .modifier_sync import CROWD_MODIFIER_NAME, sync_modifier, read_modifier, _report
+from .modifier_sync import CROWD_MODIFIER_NAME, _report
 
 _ADDON_DIR  = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS_DIR = os.path.join(_ADDON_DIR, "scripts")
@@ -153,10 +153,11 @@ class ALPHA_OT_create_setup(bpy.types.Operator):
 class ALPHA_OT_refresh_settings(bpy.types.Operator):
     bl_idname      = "alpha_crowds.refresh_settings"
     bl_label       = "Refresh Settings"
-    bl_description = "Read modifier values into the UI from the active crowd object"
+    bl_description = "Force-push UI property values into the modifier"
 
     def execute(self, context):
-        read_modifier(self, context)
+        from .modifier_sync import sync_modifier
+        sync_modifier(self, context)
         return {"FINISHED"}
 
 
@@ -166,7 +167,6 @@ class ALPHA_OT_refresh_instances(bpy.types.Operator):
     bl_description = "Read instance sets from the modifier into the UI, then push to CharacterSet_01"
 
     def execute(self, context):
-        read_modifier(self, context)
         refresh_instances(self, context)
         return {"FINISHED"}
 

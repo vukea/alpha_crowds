@@ -2,17 +2,23 @@
 panels.py
 ─────────
 All Alpha Crowds UI panels and UIList classes.
+
+Value sockets (float/int/bool/vector) are drawn directly from the modifier
+via layout.prop(mod, '["Socket_N"]', text="...") so they are always in sync
+with no separate read/write layer needed.
+
+Pointer types (Object, Collection) and special enums (crowd_type, scatter_type)
+still live in AlphaCrowdsProperties and are pushed to the modifier via
+update=_sync_on_update.
 """
 
 import bpy
 import os
 
+from .modifier_sync import CROWD_MODIFIER_NAME
+
 _ADDON_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH  = os.path.join(_ADDON_DIR, "assets", "icons", "alpha_crowds_logo.png")
-
-# ─────────────────────────────────────────────
-#  Icon / preview cache
-# ─────────────────────────────────────────────
 
 _preview_collections = {}
 
@@ -191,15 +197,17 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
             row.label(text=f"'{item.name}' missing from scene", icon="ERROR")
             return
 
+        mod = obj.modifiers.get(CROWD_MODIFIER_NAME)
+        if mod is None:
+            row       = layout.row()
+            row.alert = True
+            row.label(text="Modifier not found on object", icon="ERROR")
+            return
+
         layout.label(text=obj.name, icon="MESH_DATA")
         layout.separator(factor=0.5)
 
-        refresh_row = layout.row()
-        refresh_row.scale_y = 1.3
-        refresh_row.operator("alpha_crowds.refresh_settings", text="Refresh Settings", icon="FILE_REFRESH")
-
-        layout.separator(factor=0.8)
-
+        # Crowd type buttons — drives Socket_16 via _sync_on_update
         layout.label(text="Crowd Type:")
         type_row = layout.row(align=True)
         type_row.scale_y = 1.3
@@ -214,42 +222,46 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
         col.use_property_decorate = False
 
         if props.crowd_type == "SCATTER":
+            # Pointer — needs property
             col.prop(props, "scatter_mesh_surface", icon="MESH_DATA")
             col.separator(factor=0.8)
+
+            # Scatter sub-type enum — drives Socket_8/9/10 via _sync_on_update
             col.prop(props, "scatter_type", expand=True)
             col.separator(factor=0.8)
 
+            # Values — read/write directly from modifier socket
             radius_row        = col.row()
             radius_row.active = (props.scatter_type == "RADIUS")
-            radius_row.prop(props, "scatter_radius_size")
+            radius_row.prop(mod, '["Socket_3"]',  text="Radius Size")
 
-            col.prop(props, "scatter_seed")
-            col.prop(props, "scatter_scale")
-            col.prop(props, "scatter_random_rotation")
-            col.prop(props, "scatter_random_translation")
-            col.prop(props, "scatter_random_scale")
+            col.prop(mod, '["Socket_4"]',  text="Seed")
+            col.prop(mod, '["Socket_27"]', text="Scale")
+            col.prop(mod, '["Socket_12"]', text="Random Rotation")
+            col.prop(mod, '["Socket_11"]', text="Random Position")
+            col.prop(mod, '["Socket_7"]',  text="Random Scale")
             col.separator(factor=0.5)
 
-            col.prop(props, "scatter_random_delete")
-            col.prop(props, "scatter_translate_nth")
-            col.prop(props, "scatter_min")
-            col.prop(props, "scatter_max_vec")
+            col.prop(mod, '["Socket_13"]', text="Delete Nth")
+            col.prop(mod, '["Socket_28"]', text="Translate Nth")
+            col.prop(mod, '["Socket_29"]', text="Min")
+            col.prop(mod, '["Socket_30"]', text="Max")
             col.separator(factor=0.5)
 
             culling_row         = col.row()
             culling_row.enabled = False
-            culling_row.prop(props, "scatter_culling_radius")
+            culling_row.prop(mod, '["Socket_17"]', text="Culling Radius")
             col.separator(factor=0.5)
 
-            col.prop(props, "scatter_look_at")
+            col.prop(mod, '["Socket_24"]', text="Look At")
             locator_row        = col.row()
-            locator_row.active = props.scatter_look_at
+            locator_row.active = bool(mod.get("Socket_24", False))
             locator_row.prop(props, "scatter_locator", text="Locator", icon="OBJECT_DATA")
             col.separator(factor=0.5)
 
-            col.prop(props, "scatter_stick_to_surface")
+            col.prop(mod, '["Socket_25"]', text="Stick to Surface")
             raycast_row        = col.row()
-            raycast_row.active = props.scatter_stick_to_surface
+            raycast_row.active = bool(mod.get("Socket_25", False))
             raycast_row.prop(props, "scatter_raycast_object", text="Raycast Object", icon="OBJECT_DATA")
             col.separator(factor=0.5)
 
@@ -257,48 +269,49 @@ class ALPHA_PT_crowd_setup(bpy.types.Panel):
             col.prop(props, "scatter_vertex_group_mask", icon="GROUP_VERTEX")
 
         elif props.crowd_type == "PATH":
+            # Pointer
             col.prop(props, "path_curve_path", icon="CURVE_DATA")
             col.separator(factor=0.8)
 
             count_row        = col.row()
-            count_row.active = not props.path_by_length
-            count_row.prop(props, "path_count")
+            count_row.active = not bool(mod.get("Socket_34", False))
+            count_row.prop(mod, '["Socket_32"]', text="Count")
 
-            col.prop(props, "path_by_length")
+            col.prop(mod, '["Socket_34"]', text="Distribute by Length")
 
             length_row        = col.row()
-            length_row.active = props.path_by_length
-            length_row.prop(props, "path_length")
+            length_row.active = bool(mod.get("Socket_34", False))
+            length_row.prop(mod, '["Socket_33"]', text="Length")
 
-            col.prop(props, "path_seed")
-            col.prop(props, "path_scale")
+            col.prop(mod, '["Socket_4"]',  text="Seed")
+            col.prop(mod, '["Socket_27"]', text="Scale")
             col.separator(factor=0.5)
 
-            col.prop(props, "path_random_rotation")
-            col.prop(props, "path_random_translation")
-            col.prop(props, "path_random_scale")
+            col.prop(mod, '["Socket_12"]', text="Random Rotation")
+            col.prop(mod, '["Socket_11"]', text="Random Position")
+            col.prop(mod, '["Socket_7"]',  text="Random Scale")
             col.separator(factor=0.5)
 
-            col.prop(props, "path_random_delete")
-            col.prop(props, "path_translate_nth")
-            col.prop(props, "path_min")
-            col.prop(props, "path_max_vec")
+            col.prop(mod, '["Socket_13"]', text="Delete Nth")
+            col.prop(mod, '["Socket_28"]', text="Translate Nth")
+            col.prop(mod, '["Socket_29"]', text="Min")
+            col.prop(mod, '["Socket_30"]', text="Max")
             col.separator(factor=0.5)
 
             culling_row         = col.row()
             culling_row.enabled = False
-            culling_row.prop(props, "path_culling_radius")
+            culling_row.prop(mod, '["Socket_17"]', text="Culling Radius")
             col.separator(factor=0.5)
 
-            col.prop(props, "path_look_at")
+            col.prop(mod, '["Socket_24"]', text="Look At")
             locator_row        = col.row()
-            locator_row.active = props.path_look_at
+            locator_row.active = bool(mod.get("Socket_24", False))
             locator_row.prop(props, "path_locator", text="Locator", icon="OBJECT_DATA")
             col.separator(factor=0.5)
 
-            col.prop(props, "path_stick_to_surface")
+            col.prop(mod, '["Socket_25"]', text="Stick to Surface")
             raycast_row        = col.row()
-            raycast_row.active = props.path_stick_to_surface
+            raycast_row.active = bool(mod.get("Socket_25", False))
             raycast_row.prop(props, "path_raycast_object", text="Raycast Object", icon="OBJECT_DATA")
             col.separator(factor=0.5)
 
